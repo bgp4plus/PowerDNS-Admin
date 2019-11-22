@@ -1,0 +1,78 @@
+version: "3"
+services:
+  pdns:
+    image: pschiffe/pdns-mysql
+    environment:
+      - PDNS_master=yes
+      - PDNS_api=yes
+      - PDNS_api_key=semidomain
+      - PDNS_webserver=yes
+      - PDNS_webserver_address=0.0.0.0
+      - PDNS_webserver_password=admin
+      - PDNS_version_string=anonymous
+      - PDNS_default_ttl=1500
+      - PDNS_soa_minimum_ttl=1200
+      - PDNS_default_soa_name=ns.semi
+      - PDNS_allow_axfr_ips=0.0.0.0/0
+      - PDNS_webserver-allow-from=0.0.0.0/0
+      - PDNS_gmysql_host=mysql
+      - PDNS_gmysql_port=3306
+      - PDNS_gmysql_user=root
+      - PDNS_gmysql_password=powerdns
+      - PDNS_gmysql_dbname=powerdns
+    ports:
+      - "53:53"
+      - "53:53/udp"
+    depends_on:
+      - mysql
+    restart: always
+
+  mysql:
+    image: mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD=powerdns
+      - MYSQL_DATABASE=powerdns
+    volumes:
+      - ./mysql:/var/lib/mysql
+    expose:
+      - "3306"
+    restart: always
+
+  mysql-a:
+    image: mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD=powerdnsadmin
+      - MYSQL_DATABASE=powerdnsadmin
+    volumes:
+      - ./mysql-a:/var/lib/mysql
+    expose:
+      - "3306"
+    restart: always
+
+  pdns-admin-uwsgi:
+    image: pschiffe/pdns-admin-uwsgi:ngoduykhanh
+    environment:
+      - PDNS_API_URL=http://pdns:8081
+      - PDNS_API_KEY=semidomain
+      - PDNS_VERSION=4.1.11
+      - PDNS_ADMIN_SQLA_DB_HOST='mysql-a'
+      - PDNS_ADMIN_SQLA_DB_PORT='3306'
+      - PDNS_ADMIN_SQLA_DB_USER='root'
+      - PDNS_ADMIN_SQLA_DB_PASSWORD='powerdnsadmin'
+      - PDNS_ADMIN_SQLA_DB_NAME='powerdnsadmin'
+    volumes:
+      - ./dns-admin-upload:/opt/powerdns-admin/upload
+    expose:
+      - "9494"
+    depends_on:
+      - mysql-a
+      - pdns
+    restart: always
+
+  pdns-admin-static:
+    image: pschiffe/pdns-admin-static:ngoduykhanh
+    depends_on:
+      - pdns-admin-uwsgi
+    ports:
+      - "80:80"
+    restart: always
